@@ -14,7 +14,7 @@ Add the client script to your application
 
 ```html
 <head>
-  <script src="http://localhost:8080/client.js" />
+  <script src="http://localhost:8080/client.js"></script>
 </head>
 ```
 
