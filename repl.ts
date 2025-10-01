@@ -20,39 +20,20 @@ socket.onopen = async () => {
 
 socket.onmessage = (event) => {
   try {
-    const message = JSON.parse(event.data);
-    if (message.type === "output") {
-      console.log(blue("<"), message.data);
-    } else if (message.type === "error") {
-      console.error(red("<"), message.data);
-    } else if (message.type === "log") {
-      const { method, data } = message;
-      const formattedData = data.map(item => 
-        typeof item === 'object' ? JSON.stringify(item, null, 2) : item
-      );
+    const { method, data } = JSON.parse(event.data);
 
-      switch (method) {
-        case 'log':
-          console.log(gray("[Browser]"), ...formattedData);
-          break;
-        case 'warn':
-          console.warn(yellow("[Browser]"), ...formattedData);
-          break;
-        case 'error':
-          console.error(red("[Browser]"), ...formattedData);
-          break;
-        case 'info':
-          console.info(cyan("[Browser]"), ...formattedData);
-          break;
-        case 'debug':
-          console.debug(magenta("[Browser]"), ...formattedData);
-          break;
-        default:
-          console.log(`[Browser ${method}]`, ...formattedData);
-      }
+    const formattedData = data.map(item => 
+      (typeof item === 'object' && item !== null) ? JSON.stringify(item, null, 2) : item
+    );
+
+    if (console[method] && typeof console[method] === 'function') {
+      console[method](...formattedData);
+    } else {
+      console.log(...formattedData);
     }
   } catch (e) {
-    console.log("< ", event.data);
+    // Fallback for data that isn't in the expected JSON format
+    console.log(event.data);
   }
 };
 
