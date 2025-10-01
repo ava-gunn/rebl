@@ -88,7 +88,7 @@ socket.addEventListener("message", (event) => {
   try {
     const result = window.eval(code);
     const serializedResult = serializeOutput(result);
-    socket.send(JSON.stringify({ type: "log", method: "log", data: [serializedResult] }));
+    socket.send(JSON.stringify({ type: "result", method: "log", data: [serializedResult] }));
   } catch (error) {
     socket.send(JSON.stringify({ type: "log", method: "error", data: [error.message] }));
   }

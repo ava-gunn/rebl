@@ -1,4 +1,5 @@
 import { blue, red, yellow, gray, cyan, magenta } from "https://deno.land/std@0.140.0/fmt/colors.ts";
+import { parse } from "https://deno.land/std@0.140.0/flags/mod.ts";
 
 const socket = new WebSocket("ws://localhost:8080/ws/repl");
 
@@ -63,13 +64,22 @@ socket.onopen = async () => {
 };
 
 const encoder = new TextEncoder();
+const flags = parse(Deno.args);
+const quietMode = flags.quiet;
 
 socket.onmessage = (event) => {
   // Clear the current line (where the prompt is) and move cursor to the beginning
   Deno.stdout.writeSync(encoder.encode("\r\x1b[K"));
 
   try {
-    const { method, data } = JSON.parse(event.data);
+    const { type, method, data } = JSON.parse(event.data);
+
+    // In quiet mode, only show results. Otherwise, show everything.
+    if (quietMode && type !== 'result') {
+        // Re-print the prompt and do nothing
+        Deno.stdout.writeSync(encoder.encode(blue("> ")));
+        return;
+    }
 
     const formattedData = data.map(item => 
       (typeof item === 'object' && item !== null) ? JSON.stringify(item, null, 2) : item
@@ -86,7 +96,11 @@ socket.onmessage = (event) => {
   }
   
   // Re-print the prompt for the next input
-  Deno.stdout.writeSync(encoder.encode(blue("> ")));
+  // This is tricky because the prompt depends on the buffer state in onopen
+  // For simplicity, we'll just re-print the basic prompt. A better solution
+  // would involve sharing state between onopen and onmessage.
+  const prompt = blue("> "); // A simplified prompt re-print
+  Deno.stdout.writeSync(encoder.encode(prompt));
 };
 
 socket.onclose = () => {
