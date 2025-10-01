@@ -1,4 +1,3 @@
-import { readLines } from "https://deno.land/std@0.140.0/io/buffer.ts";
 import { blue, red, yellow, gray, cyan, magenta } from "https://deno.land/std@0.140.0/fmt/colors.ts";
 
 const socket = new WebSocket("ws://localhost:8080/ws/repl");
@@ -8,7 +7,17 @@ socket.onopen = async () => {
   console.log("Type your code and press Enter.");
   console.log("Type 'exit' to close the REPL.");
 
-  for await (const line of readLines(Deno.stdin)) {
+    const decoder = new TextDecoder();
+
+  while (true) {
+    await Deno.stdout.write(encoder.encode(blue("> ")));
+    const input = new Uint8Array(1024);
+    const n = await Deno.stdin.read(input);
+    if (n === null) {
+      break;
+    }
+    const line = decoder.decode(input.subarray(0, n)).trim();
+
     if (line === "exit") {
       break;
     }
@@ -18,7 +27,12 @@ socket.onopen = async () => {
   socket.close();
 };
 
+const encoder = new TextEncoder();
+
 socket.onmessage = (event) => {
+  // Clear the current line (where the prompt is) and move cursor to the beginning
+  Deno.stdout.writeSync(encoder.encode("\r\x1b[K"));
+
   try {
     const { method, data } = JSON.parse(event.data);
 
@@ -35,6 +49,9 @@ socket.onmessage = (event) => {
     // Fallback for data that isn't in the expected JSON format
     console.log(event.data);
   }
+  
+  // Re-print the prompt for the next input
+  Deno.stdout.writeSync(encoder.encode(blue("> ")));
 };
 
 socket.onclose = () => {
