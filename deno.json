@@ -1,13 +1,10 @@
 {
   "compilerOptions": {
-    "lib": [
-      "deno.window"
-    ]
+    "lib": ["deno.window"]
   },
   "tasks": {
-    "dev": "deno run --watch main.ts",
-    "start-server": "deno run --allow-net --allow-read server.ts",
-    "start-repl": "deno run --allow-net --allow-read repl.ts"
+    "server": "deno run --allow-net --allow-read server.ts",
+    "repl": "deno run --allow-net --allow-read repl.ts"
   },
   "imports": {
     "@std/assert": "jsr:@std/assert@1"

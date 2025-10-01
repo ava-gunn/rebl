@@ -23,8 +23,10 @@ const methodsToWrap = ['log', 'warn', 'error', 'info', 'debug'];
 
 methodsToWrap.forEach(method => {
   console[method] = (...args) => {
+    // Serialize arguments to handle circular references
+    const serializedArgs = args.map(arg => serializeOutput(arg));
     // Send the log back to the REPL
-    socket.send(JSON.stringify({ type: 'log', method: method, data: args }));
+    socket.send(JSON.stringify({ type: 'log', method: method, data: serializedArgs }));
     // Call the original console method
     originalConsole[method](...args);
   };
@@ -35,17 +37,50 @@ socket.addEventListener("open", () => {
 });
 
 // --- Output Serialization ---
-function serializeOutput(data) {
-  if (data === undefined) {
-    return 'undefined';
+function serializeOutput(data, maxDepth = 2) {
+  const seen = new WeakSet();
+
+  function serialize(obj, depth) {
+    if (obj === undefined) {
+      return 'undefined';
+    }
+    if (obj === null || typeof obj !== 'object') {
+      return obj;
+    }
+    if (obj instanceof Node) {
+      return obj.outerHTML || obj.nodeValue;
+    }
+    if (obj instanceof NodeList) {
+      return Array.from(obj).map(item => item.outerHTML || item.nodeValue);
+    }
+    if (seen.has(obj)) {
+      return '[Circular]';
+    }
+    if (depth >= maxDepth) {
+      return '[Max Depth]';
+    }
+
+    seen.add(obj);
+
+    if (Array.isArray(obj)) {
+      return obj.map(item => serialize(item, depth + 1));
+    }
+
+    const newObj = {};
+    for (const key in obj) {
+      // Use a try-catch block for properties that might throw errors on access (e.g., window.someProperty)
+      try {
+        if (Object.prototype.hasOwnProperty.call(obj, key)) {
+          newObj[key] = serialize(obj[key], depth + 1);
+        }
+      } catch (e) {
+        newObj[key] = `[Error: ${e.message}]`;
+      }
+    }
+    return newObj;
   }
-  if (data instanceof Node) {
-    return data.outerHTML || data.nodeValue;
-  }
-  if (data instanceof NodeList || (Array.isArray(data) && data.every(item => item instanceof Node))) {
-    return Array.from(data).map(item => item.outerHTML || item.nodeValue);
-  }
-  return data;
+
+  return serialize(data, 0);
 }
 
 socket.addEventListener("message", (event) => {
