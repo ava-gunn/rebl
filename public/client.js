@@ -17,15 +17,43 @@ window.table = console.table.bind(console);
 
 const socket = new WebSocket("ws://localhost:8080/ws/browser");
 
+// --- Console Interceptor ---
+const originalConsole = { ...console };
+const methodsToWrap = ['log', 'warn', 'error', 'info', 'debug'];
+
+methodsToWrap.forEach(method => {
+  console[method] = (...args) => {
+    // Send the log back to the REPL
+    socket.send(JSON.stringify({ type: 'log', method: method, data: args }));
+    // Call the original console method
+    originalConsole[method](...args);
+  };
+});
+
 socket.addEventListener("open", () => {
   console.log("WebSocket connection established.");
 });
+
+// --- Output Serialization ---
+function serializeOutput(data) {
+  if (data === undefined) {
+    return 'undefined';
+  }
+  if (data instanceof Node) {
+    return data.outerHTML || data.nodeValue;
+  }
+  if (data instanceof NodeList || (Array.isArray(data) && data.every(item => item instanceof Node))) {
+    return Array.from(data).map(item => item.outerHTML || item.nodeValue);
+  }
+  return data;
+}
 
 socket.addEventListener("message", (event) => {
   const code = event.data;
   try {
     const result = eval(code);
-    socket.send(JSON.stringify({ type: "output", data: result }));
+    const serializedResult = serializeOutput(result);
+    socket.send(JSON.stringify({ type: "output", data: serializedResult }));
   } catch (error) {
     socket.send(JSON.stringify({ type: "error", data: error.message }));
   }
