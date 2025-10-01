@@ -1,16 +1,16 @@
-import { blue, red, yellow, gray, cyan, magenta } from "https://deno.land/std@0.140.0/fmt/colors.ts";
-import { parse } from "https://deno.land/std@0.140.0/flags/mod.ts";
+import { blue, gray } from 'https://deno.land/std@0.140.0/fmt/colors.ts';
+import { parse } from 'https://deno.land/std@0.140.0/flags/mod.ts';
 
-const socket = new WebSocket("ws://localhost:8080/ws/repl");
+const socket = new WebSocket('ws://localhost:8080/ws/repl');
 
-let currentBuffer = "";
+let currentBuffer = '';
 
 function isBalanced(str: string): boolean {
   const stack: string[] = [];
   const map: Record<string, string> = {
     '(': ')',
     '[': ']',
-    '{': '}'
+    '{': '}',
   };
 
   for (let i = 0; i < str.length; i++) {
@@ -32,14 +32,12 @@ function isBalanced(str: string): boolean {
 }
 
 socket.onopen = async () => {
-  console.log("Connected to the server. You can now send JavaScript code to the browser.");
-  console.log("Type your code and press Enter.");
   console.log("Type 'exit' to close the REPL.");
 
-    const decoder = new TextDecoder();
+  const decoder = new TextDecoder();
 
   while (true) {
-    const prompt = currentBuffer.length > 0 ? gray("... ") : blue("> ");
+    const prompt = currentBuffer.length > 0 ? gray('... ') : blue('> ');
     await Deno.stdout.write(encoder.encode(prompt));
     const input = new Uint8Array(1024);
     const n = await Deno.stdin.read(input);
@@ -48,18 +46,17 @@ socket.onopen = async () => {
     }
     const line = decoder.decode(input.subarray(0, n)).trimEnd();
 
-    if (line.trim() === "exit") {
+    if (line.trim() === 'exit') {
       break;
     }
 
     currentBuffer += line + '\n';
 
     if (isBalanced(currentBuffer)) {
-        socket.send(currentBuffer);
-        currentBuffer = "";
+      socket.send(currentBuffer);
+      currentBuffer = '';
     }
   }
-
 
   socket.close();
 };
@@ -73,14 +70,16 @@ socket.onmessage = (event) => {
     const { type, method, data } = JSON.parse(event.data);
 
     if (quietMode && type !== 'result') {
-        return;
+      return;
     }
 
-    const formattedData = data.map(item => 
-      (typeof item === 'object' && item !== null) ? JSON.stringify(item, null, 2) : item
+    const formattedData = data.map((item) =>
+      typeof item === 'object' && item !== null
+        ? JSON.stringify(item, null, 2)
+        : item,
     );
 
-    Deno.stdout.writeSync(encoder.encode("\n"));
+    Deno.stdout.writeSync(encoder.encode('\n'));
 
     if (console[method] && typeof console[method] === 'function') {
       console[method](...formattedData);
@@ -88,23 +87,23 @@ socket.onmessage = (event) => {
       console.log(...formattedData);
     }
 
-    const prompt = currentBuffer.length > 0 ? gray("... ") : blue("> ");
+    const prompt = currentBuffer.length > 0 ? gray('... ') : blue('> ');
     Deno.stdout.writeSync(encoder.encode(prompt));
   } catch (e) {
-    Deno.stdout.writeSync(encoder.encode("\n"));
+    Deno.stdout.writeSync(encoder.encode('\n'));
     console.log(event.data);
-    
-    const prompt = currentBuffer.length > 0 ? gray("... ") : blue("> ");
+
+    const prompt = currentBuffer.length > 0 ? gray('... ') : blue('> ');
     Deno.stdout.writeSync(encoder.encode(prompt));
   }
 };
 
 socket.onclose = () => {
-  console.log("Connection to the server has been closed.");
+  console.log('Connection to the server has been closed.');
   Deno.exit(0);
 };
 
 socket.onerror = (error) => {
-  console.error("WebSocket error:", error);
+  console.error('WebSocket error:', error);
   Deno.exit(1);
 };

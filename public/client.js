@@ -5,30 +5,33 @@ window.copy = (object) => {
   if (typeof object !== 'string') {
     object = JSON.stringify(object, null, 2);
   }
-  navigator.clipboard.writeText(object)
+  navigator.clipboard
+    .writeText(object)
     .then(() => console.log('Copied to clipboard.'))
-    .catch(err => console.error('Failed to copy: ', err));
+    .catch((err) => console.error('Failed to copy: ', err));
 };
 window.inspect = console.dir.bind(console);
 window.keys = Object.keys.bind(Object);
 window.values = Object.values.bind(Object);
 window.table = console.table.bind(console);
 
-const socket = new WebSocket("ws://localhost:8080/ws/browser");
+const socket = new WebSocket('ws://localhost:8080/ws/browser');
 
 const originalConsole = { ...console };
 const methodsToWrap = ['log', 'warn', 'error', 'info', 'debug'];
 
-methodsToWrap.forEach(method => {
+methodsToWrap.forEach((method) => {
   console[method] = (...args) => {
-    const serializedArgs = args.map(arg => serializeOutput(arg));
-    socket.send(JSON.stringify({ type: 'log', method: method, data: serializedArgs }));
+    const serializedArgs = args.map((arg) => serializeOutput(arg));
+    socket.send(
+      JSON.stringify({ type: 'log', method: method, data: serializedArgs }),
+    );
     originalConsole[method](...args);
   };
 });
 
-socket.addEventListener("open", () => {
-  console.log("WebSocket connection established.");
+socket.addEventListener('open', () => {
+  console.log('WebSocket connection established.');
 });
 
 function serializeOutput(data, maxDepth = 2) {
@@ -45,7 +48,7 @@ function serializeOutput(data, maxDepth = 2) {
       return obj.outerHTML || obj.nodeValue;
     }
     if (obj instanceof NodeList) {
-      return Array.from(obj).map(item => item.outerHTML || item.nodeValue);
+      return Array.from(obj).map((item) => item.outerHTML || item.nodeValue);
     }
     if (seen.has(obj)) {
       return '[Circular]';
@@ -57,7 +60,7 @@ function serializeOutput(data, maxDepth = 2) {
     seen.add(obj);
 
     if (Array.isArray(obj)) {
-      return obj.map(item => serialize(item, depth + 1));
+      return obj.map((item) => serialize(item, depth + 1));
     }
 
     const newObj = {};
@@ -76,21 +79,29 @@ function serializeOutput(data, maxDepth = 2) {
   return serialize(data, 0);
 }
 
-socket.addEventListener("message", (event) => {
+socket.addEventListener('message', (event) => {
   const code = event.data;
   try {
     const result = window.eval(code);
     const serializedResult = serializeOutput(result);
-    socket.send(JSON.stringify({ type: "result", method: "log", data: [serializedResult] }));
+    socket.send(
+      JSON.stringify({
+        type: 'result',
+        method: 'log',
+        data: [serializedResult],
+      }),
+    );
   } catch (error) {
-    socket.send(JSON.stringify({ type: "log", method: "error", data: [error.message] }));
+    socket.send(
+      JSON.stringify({ type: 'log', method: 'error', data: [error.message] }),
+    );
   }
 });
 
-socket.addEventListener("close", () => {
-  console.log("WebSocket connection closed.");
+socket.addEventListener('close', () => {
+  console.log('WebSocket connection closed.');
 });
 
-socket.addEventListener("error", (error) => {
-  console.error("WebSocket error:", error);
+socket.addEventListener('error', (error) => {
+  console.error('WebSocket error:', error);
 });
