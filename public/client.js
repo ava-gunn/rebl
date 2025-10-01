@@ -1,4 +1,3 @@
-// Console Utilities API
 window.$ = document.querySelector.bind(document);
 window.$$ = document.querySelectorAll.bind(document);
 window.clear = console.clear.bind(console);
@@ -17,17 +16,13 @@ window.table = console.table.bind(console);
 
 const socket = new WebSocket("ws://localhost:8080/ws/browser");
 
-// --- Console Interceptor ---
 const originalConsole = { ...console };
 const methodsToWrap = ['log', 'warn', 'error', 'info', 'debug'];
 
 methodsToWrap.forEach(method => {
   console[method] = (...args) => {
-    // Serialize arguments to handle circular references
     const serializedArgs = args.map(arg => serializeOutput(arg));
-    // Send the log back to the REPL
     socket.send(JSON.stringify({ type: 'log', method: method, data: serializedArgs }));
-    // Call the original console method
     originalConsole[method](...args);
   };
 });
@@ -36,7 +31,6 @@ socket.addEventListener("open", () => {
   console.log("WebSocket connection established.");
 });
 
-// --- Output Serialization ---
 function serializeOutput(data, maxDepth = 2) {
   const seen = new WeakSet();
 
@@ -68,7 +62,6 @@ function serializeOutput(data, maxDepth = 2) {
 
     const newObj = {};
     for (const key in obj) {
-      // Use a try-catch block for properties that might throw errors on access (e.g., window.someProperty)
       try {
         if (Object.prototype.hasOwnProperty.call(obj, key)) {
           newObj[key] = serialize(obj[key], depth + 1);

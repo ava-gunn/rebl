@@ -3,7 +3,6 @@ import { parse } from "https://deno.land/std@0.140.0/flags/mod.ts";
 
 const socket = new WebSocket("ws://localhost:8080/ws/repl");
 
-// Shared state for tracking the current buffer
 let currentBuffer = "";
 
 function isBalanced(str: string): boolean {
@@ -20,11 +19,11 @@ function isBalanced(str: string): boolean {
       stack.push(char);
     } else if (char === ')' || char === ']' || char === '}') {
       if (stack.length === 0) {
-        return true; // Likely a complete expression with an unbalanced close
+        return true;
       }
       const lastOpen = stack.pop()!;
       if (map[lastOpen] !== char) {
-        return true; // Mismatched brackets, treat as complete to show error
+        return true;
       }
     }
   }
@@ -73,7 +72,6 @@ socket.onmessage = (event) => {
   try {
     const { type, method, data } = JSON.parse(event.data);
 
-    // In quiet mode, only show results. Otherwise, show everything.
     if (quietMode && type !== 'result') {
         return;
     }
@@ -82,7 +80,6 @@ socket.onmessage = (event) => {
       (typeof item === 'object' && item !== null) ? JSON.stringify(item, null, 2) : item
     );
 
-    // Print a newline first to avoid interfering with current input
     Deno.stdout.writeSync(encoder.encode("\n"));
 
     if (console[method] && typeof console[method] === 'function') {
@@ -91,15 +88,12 @@ socket.onmessage = (event) => {
       console.log(...formattedData);
     }
 
-    // Reprint the prompt after the message
     const prompt = currentBuffer.length > 0 ? gray("... ") : blue("> ");
     Deno.stdout.writeSync(encoder.encode(prompt));
   } catch (e) {
-    // Fallback for data that isn't in the expected JSON format
     Deno.stdout.writeSync(encoder.encode("\n"));
     console.log(event.data);
     
-    // Reprint the prompt after the message
     const prompt = currentBuffer.length > 0 ? gray("... ") : blue("> ");
     Deno.stdout.writeSync(encoder.encode(prompt));
   }

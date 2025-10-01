@@ -21,7 +21,6 @@ const handler = async (req: Request): Promise<Response> => {
     };
 
     socket.onmessage = (event) => {
-      // Message from a REPL client, forward to browser
       if (replSockets.has(socket)) {
         if (browserSocket) {
           browserSocket.send(event.data);
@@ -29,7 +28,6 @@ const handler = async (req: Request): Promise<Response> => {
           socket.send(JSON.stringify({ type: "error", data: "Browser is not connected." }));
         }
       } 
-      // Message from the browser client, forward to all REPLs
       else if (socket === browserSocket) {
         for (const replSocket of replSockets) {
           replSocket.send(event.data);
