@@ -2,27 +2,62 @@ import { blue, red, yellow, gray, cyan, magenta } from "https://deno.land/std@0.
 
 const socket = new WebSocket("ws://localhost:8080/ws/repl");
 
+function isBalanced(str: string): boolean {
+  const stack: string[] = [];
+  const map: Record<string, string> = {
+    '(': ')',
+    '[': ']',
+    '{': '}'
+  };
+
+  for (let i = 0; i < str.length; i++) {
+    const char = str[i];
+    if (char === '(' || char === '[' || char === '{') {
+      stack.push(char);
+    } else if (char === ')' || char === ']' || char === '}') {
+      if (stack.length === 0) {
+        return true; // Likely a complete expression with an unbalanced close
+      }
+      const lastOpen = stack.pop()!;
+      if (map[lastOpen] !== char) {
+        return true; // Mismatched brackets, treat as complete to show error
+      }
+    }
+  }
+
+  return stack.length === 0;
+}
+
 socket.onopen = async () => {
   console.log("Connected to the server. You can now send JavaScript code to the browser.");
   console.log("Type your code and press Enter.");
   console.log("Type 'exit' to close the REPL.");
 
     const decoder = new TextDecoder();
+  let buffer = "";
 
   while (true) {
-    await Deno.stdout.write(encoder.encode(blue("> ")));
+    const prompt = buffer.length > 0 ? gray("... ") : blue("> ");
+    await Deno.stdout.write(encoder.encode(prompt));
     const input = new Uint8Array(1024);
     const n = await Deno.stdin.read(input);
     if (n === null) {
       break;
     }
-    const line = decoder.decode(input.subarray(0, n)).trim();
+    const line = decoder.decode(input.subarray(0, n)).trimEnd();
 
-    if (line === "exit") {
+    if (line.trim() === "exit") {
       break;
     }
-    socket.send(line);
+
+    buffer += line + '\n';
+
+    if (isBalanced(buffer)) {
+        socket.send(buffer);
+        buffer = "";
+    }
   }
+
 
   socket.close();
 };
