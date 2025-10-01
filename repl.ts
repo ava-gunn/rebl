@@ -3,6 +3,9 @@ import { parse } from "https://deno.land/std@0.140.0/flags/mod.ts";
 
 const socket = new WebSocket("ws://localhost:8080/ws/repl");
 
+// Shared state for tracking the current buffer
+let currentBuffer = "";
+
 function isBalanced(str: string): boolean {
   const stack: string[] = [];
   const map: Record<string, string> = {
@@ -35,10 +38,9 @@ socket.onopen = async () => {
   console.log("Type 'exit' to close the REPL.");
 
     const decoder = new TextDecoder();
-  let buffer = "";
 
   while (true) {
-    const prompt = buffer.length > 0 ? gray("... ") : blue("> ");
+    const prompt = currentBuffer.length > 0 ? gray("... ") : blue("> ");
     await Deno.stdout.write(encoder.encode(prompt));
     const input = new Uint8Array(1024);
     const n = await Deno.stdin.read(input);
@@ -51,11 +53,11 @@ socket.onopen = async () => {
       break;
     }
 
-    buffer += line + '\n';
+    currentBuffer += line + '\n';
 
-    if (isBalanced(buffer)) {
-        socket.send(buffer);
-        buffer = "";
+    if (isBalanced(currentBuffer)) {
+        socket.send(currentBuffer);
+        currentBuffer = "";
     }
   }
 
@@ -68,16 +70,11 @@ const flags = parse(Deno.args);
 const quietMode = flags.quiet;
 
 socket.onmessage = (event) => {
-  // Clear the current line (where the prompt is) and move cursor to the beginning
-  Deno.stdout.writeSync(encoder.encode("\r\x1b[K"));
-
   try {
     const { type, method, data } = JSON.parse(event.data);
 
     // In quiet mode, only show results. Otherwise, show everything.
     if (quietMode && type !== 'result') {
-        // Re-print the prompt and do nothing
-        Deno.stdout.writeSync(encoder.encode(blue("> ")));
         return;
     }
 
@@ -85,22 +82,27 @@ socket.onmessage = (event) => {
       (typeof item === 'object' && item !== null) ? JSON.stringify(item, null, 2) : item
     );
 
+    // Print a newline first to avoid interfering with current input
+    Deno.stdout.writeSync(encoder.encode("\n"));
+
     if (console[method] && typeof console[method] === 'function') {
       console[method](...formattedData);
     } else {
       console.log(...formattedData);
     }
+
+    // Reprint the prompt after the message
+    const prompt = currentBuffer.length > 0 ? gray("... ") : blue("> ");
+    Deno.stdout.writeSync(encoder.encode(prompt));
   } catch (e) {
     // Fallback for data that isn't in the expected JSON format
+    Deno.stdout.writeSync(encoder.encode("\n"));
     console.log(event.data);
+    
+    // Reprint the prompt after the message
+    const prompt = currentBuffer.length > 0 ? gray("... ") : blue("> ");
+    Deno.stdout.writeSync(encoder.encode(prompt));
   }
-  
-  // Re-print the prompt for the next input
-  // This is tricky because the prompt depends on the buffer state in onopen
-  // For simplicity, we'll just re-print the basic prompt. A better solution
-  // would involve sharing state between onopen and onmessage.
-  const prompt = blue("> "); // A simplified prompt re-print
-  Deno.stdout.writeSync(encoder.encode(prompt));
 };
 
 socket.onclose = () => {
