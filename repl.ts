@@ -8,6 +8,26 @@ let waitingForResponse = false;
 let responsePromise: Promise<void> | null = null;
 let responseResolve: (() => void) | null = null;
 
+function resolveResponse() {
+  if (waitingForResponse && responseResolve) {
+    responseResolve();
+    waitingForResponse = false;
+    responseResolve = null;
+  }
+}
+
+function writeNewline() {
+  Deno.stdout.writeSync(encoder.encode('\n'));
+}
+
+function callConsoleMethod(method: string, data: unknown[]) {
+  if (console[method] && typeof console[method] === 'function') {
+    console[method](...data);
+  } else {
+    console.log(...data);
+  }
+}
+
 function isBalanced(str: string): boolean {
   const stack: string[] = [];
   const map: Record<string, string> = {
@@ -84,20 +104,12 @@ socket.onmessage = (event) => {
     const { type, method, data } = JSON.parse(event.data);
 
     if (quietMode && type !== 'result' && type !== 'undefined') {
-      if (waitingForResponse && responseResolve) {
-        responseResolve();
-        waitingForResponse = false;
-        responseResolve = null;
-      }
+      resolveResponse();
       return;
     }
 
     if (type === 'undefined') {
-      if (waitingForResponse && responseResolve) {
-        responseResolve();
-        waitingForResponse = false;
-        responseResolve = null;
-      }
+      resolveResponse();
       return;
     }
 
@@ -107,28 +119,13 @@ socket.onmessage = (event) => {
         : item,
     );
 
-    Deno.stdout.writeSync(encoder.encode('\n'));
-
-    if (console[method] && typeof console[method] === 'function') {
-      console[method](...formattedData);
-    } else {
-      console.log(...formattedData);
-    }
-
-    if (waitingForResponse && responseResolve) {
-      responseResolve();
-      waitingForResponse = false;
-      responseResolve = null;
-    }
+    writeNewline();
+    callConsoleMethod(method, formattedData);
+    resolveResponse();
   } catch (e) {
-    Deno.stdout.writeSync(encoder.encode('\n'));
+    writeNewline();
     console.log(event.data);
-
-    if (waitingForResponse && responseResolve) {
-      responseResolve();
-      waitingForResponse = false;
-      responseResolve = null;
-    }
+    resolveResponse();
   }
 };
 

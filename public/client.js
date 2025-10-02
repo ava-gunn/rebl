@@ -1,33 +1,47 @@
-window.$ = document.querySelector.bind(document);
-window.$$ = document.querySelectorAll.bind(document);
-window.clear = console.clear.bind(console);
-window.copy = (object) => {
-  if (typeof object !== 'string') {
-    object = JSON.stringify(object, null, 2);
-  }
-  navigator.clipboard
-    .writeText(object)
-    .then(() => console.log('Copied to clipboard.'))
-    .catch((err) => console.error('Failed to copy: ', err));
-};
-window.inspect = console.dir.bind(console);
-window.keys = Object.keys.bind(Object);
-window.values = Object.values.bind(Object);
-window.table = console.table.bind(console);
+function setupGlobalUtilities() {
+  const utilities = {
+    $: document.querySelector.bind(document),
+    $$: document.querySelectorAll.bind(document),
+    clear: console.clear.bind(console),
+    copy: (object) => {
+      if (typeof object !== 'string') {
+        object = JSON.stringify(object, null, 2);
+      }
+      navigator.clipboard
+        .writeText(object)
+        .then(() => console.log('Copied to clipboard.'))
+        .catch((err) => console.error('Failed to copy: ', err));
+    },
+    inspect: console.dir.bind(console),
+    keys: Object.keys.bind(Object),
+    values: Object.values.bind(Object),
+    table: console.table.bind(console),
+  };
+
+  Object.assign(window, utilities);
+}
+
+setupGlobalUtilities();
 
 const socket = new WebSocket('ws://localhost:8080/ws/browser');
+
+function sendMessage(type, method, data) {
+  socket.send(JSON.stringify({ type, method, data }));
+}
+
+function createConsoleWrapper(method, originalMethod) {
+  return (...args) => {
+    const serializedArgs = args.map((arg) => serializeOutput(arg));
+    sendMessage('log', method, serializedArgs);
+    originalMethod(...args);
+  };
+}
 
 const originalConsole = { ...console };
 const methodsToWrap = ['log', 'warn', 'error', 'info', 'debug'];
 
 methodsToWrap.forEach((method) => {
-  console[method] = (...args) => {
-    const serializedArgs = args.map((arg) => serializeOutput(arg));
-    socket.send(
-      JSON.stringify({ type: 'log', method: method, data: serializedArgs }),
-    );
-    originalConsole[method](...args);
-  };
+  console[method] = createConsoleWrapper(method, originalConsole[method]);
 });
 
 socket.addEventListener('open', () => {
@@ -87,17 +101,9 @@ socket.addEventListener('message', (event) => {
     const result = __EVAL(code);
     const serializedResult = serializeOutput(result);
 
-    socket.send(
-      JSON.stringify({
-        type: 'result',
-        method: 'log',
-        data: [serializedResult],
-      }),
-    );
+    sendMessage('result', 'log', [serializedResult]);
   } catch (error) {
-    socket.send(
-      JSON.stringify({ type: 'log', method: 'error', data: [error.message] }),
-    );
+    sendMessage('log', 'error', [error.message]);
   }
 });
 
