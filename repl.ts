@@ -31,16 +31,21 @@ function isBalanced(str: string): boolean {
   return stack.length === 0;
 }
 
+function prompt() {
+  const prompt = currentBuffer.length > 0 ? gray('... ') : blue('> ');
+  Deno.stdout.writeSync(encoder.encode(prompt));
+}
+
 socket.onopen = async () => {
   console.log("Type 'exit' to close the REPL.");
 
   const decoder = new TextDecoder();
 
   while (true) {
-    const prompt = currentBuffer.length > 0 ? gray('... ') : blue('> ');
-    await Deno.stdout.write(encoder.encode(prompt));
+    prompt();
     const input = new Uint8Array(1024);
     const n = await Deno.stdin.read(input);
+
     if (n === null) {
       break;
     }
@@ -87,14 +92,11 @@ socket.onmessage = (event) => {
       console.log(...formattedData);
     }
 
-    const prompt = currentBuffer.length > 0 ? gray('... ') : blue('> ');
-    Deno.stdout.writeSync(encoder.encode(prompt));
+    prompt();
   } catch (e) {
     Deno.stdout.writeSync(encoder.encode('\n'));
     console.log(event.data);
-
-    const prompt = currentBuffer.length > 0 ? gray('... ') : blue('> ');
-    Deno.stdout.writeSync(encoder.encode(prompt));
+    prompt();
   }
 };
 

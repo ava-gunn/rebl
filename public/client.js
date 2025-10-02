@@ -75,15 +75,20 @@ function serializeOutput(data, maxDepth = 2) {
     }
     return newObj;
   }
-
   return serialize(data, 0);
 }
+
+// Create a persistent evaluation context
+var __EVAL = (s) => eval(`void (__EVAL = ${__EVAL.toString()}); ${s}`);
 
 socket.addEventListener('message', (event) => {
   const code = event.data;
   try {
-    const result = window.eval(code);
+    const result = __EVAL(code);
     const serializedResult = serializeOutput(result);
+
+    if (serializedResult === 'undefined') return;
+
     socket.send(
       JSON.stringify({
         type: 'result',
