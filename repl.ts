@@ -4,6 +4,9 @@ import { parse } from 'https://deno.land/std@0.140.0/flags/mod.ts';
 const socket = new WebSocket('ws://localhost:8080/ws/repl');
 
 let currentBuffer = '';
+let waitingForResponse = false;
+let responsePromise: Promise<void> | null = null;
+let responseResolve: (() => void) | null = null;
 
 function isBalanced(str: string): boolean {
   const stack: string[] = [];
@@ -58,8 +61,14 @@ socket.onopen = async () => {
     currentBuffer += line + '\n';
 
     if (isBalanced(currentBuffer)) {
+      waitingForResponse = true;
+      responsePromise = new Promise((resolve) => {
+        responseResolve = resolve;
+      });
       socket.send(currentBuffer);
       currentBuffer = '';
+
+      await responsePromise;
     }
   }
 
@@ -74,7 +83,21 @@ socket.onmessage = (event) => {
   try {
     const { type, method, data } = JSON.parse(event.data);
 
-    if (quietMode && type !== 'result') {
+    if (quietMode && type !== 'result' && type !== 'undefined') {
+      if (waitingForResponse && responseResolve) {
+        responseResolve();
+        waitingForResponse = false;
+        responseResolve = null;
+      }
+      return;
+    }
+
+    if (type === 'undefined') {
+      if (waitingForResponse && responseResolve) {
+        responseResolve();
+        waitingForResponse = false;
+        responseResolve = null;
+      }
       return;
     }
 
@@ -92,11 +115,20 @@ socket.onmessage = (event) => {
       console.log(...formattedData);
     }
 
-    prompt();
+    if (waitingForResponse && responseResolve) {
+      responseResolve();
+      waitingForResponse = false;
+      responseResolve = null;
+    }
   } catch (e) {
     Deno.stdout.writeSync(encoder.encode('\n'));
     console.log(event.data);
-    prompt();
+
+    if (waitingForResponse && responseResolve) {
+      responseResolve();
+      waitingForResponse = false;
+      responseResolve = null;
+    }
   }
 };
 

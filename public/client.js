@@ -87,8 +87,6 @@ socket.addEventListener('message', (event) => {
     const result = __EVAL(code);
     const serializedResult = serializeOutput(result);
 
-    if (serializedResult === 'undefined') return;
-
     socket.send(
       JSON.stringify({
         type: 'result',
