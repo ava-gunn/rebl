@@ -103,7 +103,7 @@ socket.onmessage = (event) => {
   try {
     const { type, method, data } = JSON.parse(event.data);
 
-    if (quietMode && type !== 'result' && type !== 'undefined') {
+    if (quietMode && type !== 'result') {
       resolveResponse();
       return;
     }
